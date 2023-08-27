@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -219,9 +220,17 @@ func longToShort(longUrl string, ttl int) string {
 	}
 
 	if shortKey != "" {
+
+		log.Println("shortKey is " + shortKey)
+		log.Println("longUrl is " + longUrl)
+		log.Println("longUrlMD5 is " + longUrlMD5)
+
 		_, _ = redisClient.Do("mset", shortKey, longUrl, longUrlMD5, shortKey)
 
+		log.Println("shortKey ttl is " + strconv.Itoa(ttl))
 		_, _ = redisClient.Do("expire", shortKey, ttl)
+
+		log.Println("longUrlMD5 ttl is " + strconv.Itoa(secondsPerDay))
 		_, _ = redisClient.Do("expire", longUrlMD5, secondsPerDay)
 	}
 
@@ -363,6 +372,10 @@ func LoggerToFile() gin.HandlerFunc {
 
 // redis 连接池
 func initRedisPool() {
+
+	log.Println("host is " + redisPoolConfig.host)
+	log.Println("passwd is " + redisPoolConfig.password)
+
 	// 建立连接池
 	redisPool = &redis.Pool{
 		MaxIdle:     redisPoolConfig.maxIdle,
@@ -371,14 +384,18 @@ func initRedisPool() {
 		Wait:        true,
 		Dial: func() (redis.Conn, error) {
 			con, err := redis.Dial("tcp", redisPoolConfig.host,
+				redis.DialUseTLS(true),
+				redis.DialTLSSkipVerify(true),
 				redis.DialPassword(redisPoolConfig.password),
 				redis.DialDatabase(redisPoolConfig.db),
 				redis.DialConnectTimeout(time.Duration(redisPoolConfig.handleTimeout)*time.Second),
 				redis.DialReadTimeout(time.Duration(redisPoolConfig.handleTimeout)*time.Second),
 				redis.DialWriteTimeout(time.Duration(redisPoolConfig.handleTimeout)*time.Second))
 			if err != nil {
+				log.Fatalln("redis init failed ", err.Error())
 				return nil, err
 			}
+			log.Println("redis init success ")
 			return con, nil
 		},
 	}
